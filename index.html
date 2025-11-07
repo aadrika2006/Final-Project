@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mini E-commerce — Auth + Chat</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#fff; --accent:#2563eb; --muted:#6b7280;
+    --shadow: 0 6px 18px rgba(20,20,40,0.06);
+  }
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; background:var(--bg); color:#0f172a;}
+  header{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;background:linear-gradient(90deg,#ffffff88, #fff);box-shadow:var(--shadow)}
+  .brand{font-weight:700;font-size:20px;color:var(--accent)}
+  .nav{display:flex;gap:10px;align-items:center}
+  button, input, textarea{font-family:inherit}
+  .btn{background:var(--accent);color:white;padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+  .btn.secondary{background:transparent;color:var(--accent);border:1px solid rgba(37,99,235,0.15)}
+  main{padding:28px;max-width:1100px;margin:24px auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+  .card{background:var(--card);border-radius:10px;padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
+  .product-img{height:140px;background:linear-gradient(135deg,#eef2ff,#fef3c7);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600}
+  .price{font-weight:700;color:#111}
+  .muted{color:var(--muted);font-size:13px}
+  footer{padding:20px;text-align:center;color:var(--muted)}
+  /* Auth Panel */
+  .auth-panel{position:fixed;right:20px;top:80px;width:320px;background:var(--card);box-shadow:var(--shadow);border-radius:10px;padding:16px;z-index:40}
+  .auth-switch{display:flex;gap:8px;margin-bottom:8px}
+  .form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  input[type="email"], input[type="password"]{padding:8px;border-radius:8px;border:1px solid #e6eef8}
+  /* Chat widget */
+  .chat-toggle{position:fixed;right:24px;bottom:24px;z-index:50}
+  .chat-button{background:var(--accent);color:white;padding:12px;border-radius:999px;border:0;box-shadow:var(--shadow);cursor:pointer}
+  .chat-panel{position:fixed;right:24px;bottom:86px;width:320px;max-height:60vh;background:var(--card);box-shadow:var(--shadow);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .chat-header{padding:10px 12px;background:linear-gradient(90deg,#eef2ff,#fff);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9}
+  .chat-body{padding:10px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:8px}
+  .chat-input{display:flex;padding:8px;border-top:1px solid #f1f5f9}
+  .bubble{max-width:78%;padding:8px 10px;border-radius:12px;background:#eef2ff;align-self:flex-start}
+  .bubble.me{background:#e7f0ff;align-self:flex-end}
+  .small{font-size:12px;color:var(--muted)}
+  /* Responsive */
+  @media (max-width:720px){
+    .auth-panel{right:12px;top:auto;bottom:140px;width:92%}
+    .chat-panel{right:12px;left:12px;bottom:90px;width:auto}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Shoply</div>
+  <div class="nav">
+    <div class="small muted" id="userStatus">Not signed in</div>
+    <button class="btn secondary" id="btnProfile" style="display:none">Profile</button>
+    <button class="btn" id="btnOpenAuth">Sign in</button>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h1>Featured products</h1>
+    <p class="muted">A minimal demo of product listings, auth and chat integration.</p>
+    <div class="grid" id="productGrid">
+      <!-- product cards injected by JS -->
+    </div>
+  </section>
+
+  <section style="margin-top:28px">
+    <h2>About this demo</h2>
+    <p class="muted">The authentication forms are wired to typical REST endpoints. Replace the API base URL in the script to connect to your own backend.</p>
+  </section>
+</main>
+
+<!-- Auth panel (hidden by default) -->
+<div id="authPanel" class="auth-panel" style="display:none;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <strong id="authTitle">Sign in</strong>
+    <button id="closeAuth" style="border:0;background:transparent;cursor:pointer">✕</button>
+  </div>
+
+  <div class="auth-switch">
+    <button id="showLogin" class="btn" style="flex:1">Login</button>
+    <button id="showRegister" class="btn secondary" style="flex:1">Register</button>
+  </div>
+
+  <form id="authForm">
+    <div class="form-row">
+      <label>Email <span class="small muted" id="emailHelp"></span></label>
+      <input id="authEmail" type="email" required placeholder="you@example.com" />
+    </div>
+    <div class="form-row">
+      <label>Password</label>
+      <input id="authPassword" type="password" required placeholder="Choose a strong password" minlength="6" />
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" type="submit" id="authSubmit">Sign in</button>
+      <button type="button" class="btn secondary" id="authDemo">Fill demo</button>
+    </div>
+    <div style="margin-top:8px"><span id="authMessage" class="muted"></span></div>
+  </form>
+</div>
+
+<!-- Chat toggle & panel -->
+<div class="chat-toggle">
+  <button class="chat-button" id="toggleChat">💬</button>
+</div>
+
+<div id="chatPanel" class="chat-panel" style="display:none;">
+  <div class="chat-header">
+    <div><strong>Support Chat</strong><div class="small muted">We respond instantly (demo)</div></div>
+    <div><button id="closeChat" style="border:0;background:transparent;cursor:pointer">_</button></div>
+  </div>
+  <div id="chatBody" class="chat-body">
+    <div class="small muted">Welcome! Ask about products, orders, or demo features.</div>
+  </div>
+  <div class="chat-input">
+    <input id="chatInput" placeholder="Type a message..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #e6eef8" />
+    <button class="btn" id="chatSend" style="margin-left:8px">Send</button>
+  </div>
+</div>
+
+<footer>© <span id="year"></span> Shoply — Demo</footer>
+
+<script>
+/*
+  Front-end scaffold for:
+  - rendering demo products
+  - auth UI wired to API endpoints (change API_BASE below)
+  - chat widget: tries WebSocket at WS_BASE, falls back to simulated replies
+*/
+
+/* ============ Configuration ============ */
+const API_BASE = 'http://localhost:4000/api'; // set to your backend
+const WS_BASE = 'ws://localhost:4000/chat'; // optional WebSocket endpoint
+const PRODUCTS = [
+  {id:1, name:'Wireless Headphones', price:69.99, desc:'Comfortable, long battery life'},
+  {id:2, name:'Smart Watch', price:129.00, desc:'Heart rate + notifications'},
+  {id:3, name:'Vintage Leather Bag', price:89.50, desc:'Hand-stitched look'},
+  {id:4, name:'Portable Speaker', price:39.99, desc:'Loud & waterproof'},
+  {id:5, name:'Running Shoes', price:69.99, desc:'Lightweight and grippy'},
+  {id:6, name:'Minimal Desk Lamp', price:29.00, desc:'Warm LED with dimmer'}
+];
+
+/* ============ State ============ */
+let accessToken = null;        // store access token in memory
+let currentUser = null;        // { email, id } from token or profile
+let ws = null;
+let wsConnected = false;
+
+/* ============ Utilities ============ */
+function $(sel){return document.querySelector(sel)}
+function el(html){ const div=document.createElement('div'); div.innerHTML=html.trim(); return div.firstChild; }
+function setMessage(msg){ $('#authMessage').textContent = msg; }
+
+/* ============ Render products ============ */
+function renderProducts(){
+  const grid = $('#productGrid');
+  grid.innerHTML = '';
+  for(const p of PRODUCTS){
+    const node = el(`
+      <div class="card">
+        <div class="product-img">${p.name.split(' ').slice(0,2).join(' ')}</div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><strong>${p.name}</strong><div class="muted">${p.desc}</div></div>
+            <div class="price">$${p.price.toFixed(2)}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn buy" data-id="${p.id}">Buy</button>
+          <button class="btn secondary wishlist" data-id="${p.id}">Wishlist</button>
+        </div>
+      </div>
+    `);
+    grid.appendChild(node);
+  }
+}
+renderProducts();
+
+/* ============ Auth UI ============ */
+$('#year').textContent = new Date().getFullYear();
+const authPanel = $('#authPanel');
+$('#btnOpenAuth').addEventListener('click', ()=>{ authPanel.style.display='block'; });
+$('#closeAuth').addEventListener('click', ()=>{ authPanel.style.display='none'; });
+$('#showLogin').addEventListener('click', ()=>{ setMode('login'); });
+$('#showRegister').addEventListener('click', ()=>{ setMode('register'); });
+$('#authDemo').addEventListener('click', ()=>{ $('#authEmail').value='demo@example.com'; $('#authPassword').value='password'; setMessage('Filled demo credentials'); });
+
+function setMode(mode){
+  if(mode==='login'){
+    $('#authTitle').textContent='Sign in';
+    $('#authSubmit').textContent='Sign in';
+    $('#showLogin').classList.remove('btn','secondary'); // keep visually clear
+    $('#showLogin').classList.add('btn');
+    $('#showRegister').classList.add('btn','secondary');
+    $('#emailHelp').textContent='';
+  } else {
+    $('#authTitle').textContent='Register';
+    $('#authSubmit').textContent='Create account';
+    $('#showRegister').classList.remove('btn','secondary');
+    $('#showRegister').classList.add('btn');
+    $('#showLogin').classList.add('btn','secondary');
+    $('#emailHelp').textContent='We will never share your email';
+  }
+}
+setMode('login');
+
+$('#authForm').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  setMessage('');
+  const email = $('#authEmail').value.trim();
+  const password = $('#authPassword').value;
+  const isRegister = $('#authSubmit').textContent.toLowerCase().includes('create');
+
+  try {
+    const url = isRegister ? API_BASE + '/register' : API_BASE + '/login';
+    const resp = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'include', // important for refresh cookie flows
+      body: JSON.stringify({ email, password })
+    });
+    const data = await resp.json();
+    if(!resp.ok){ setMessage(data.error || 'Auth failed'); return; }
+
+    // expected backend returns { accessToken }
+    if(data.accessToken){
+      accessToken = data.accessToken;
+      // optionally decode minimal payload (email) if stored in token — here we just set email
+      currentUser = { email };
+      updateUserUI();
+      setMessage(isRegister ? 'Registered & signed in' : 'Signed in');
+      authPanel.style.display='none';
+    } else {
+      setMessage('Auth succeeded but no token returned (check backend).');
+    }
+  } catch(err){
+    console.error(err);
+    setMessage('Network error — check backend URL');
+  }
+});
+
+/* Sign out */
+$('#btnProfile').addEventListener('click', async ()=>{
+  if(!accessToken){ alert('Not signed in'); return; }
+  // show brief profile + logout
+  if(confirm('Sign out?')){
+    try {
+      await fetch(API_BASE + '/logout', { method:'POST', credentials:'include' });
+    } catch(e){ console.warn('logout request failed', e); }
+    accessToken = null;
+    currentUser = null;
+    updateUserUI();
+  }
+});
+
+/* Show user state */
+function updateUserUI(){
+  if(currentUser && accessToken){
+    $('#userStatus').textContent = currentUser.email;
+    $('#btnOpenAuth').style.display='none';
+    $('#btnProfile').style.display='inline-flex';
+  } else {
+    $('#userStatus').textContent = 'Not signed in';
+    $('#btnOpenAuth').style.display='inline-flex';
+    $('#btnProfile').style.display='none';
+  }
+}
+updateUserUI();
+
+/* ============ Protected API call example ============ */
+document.addEventListener('click', async (ev)=>{
+  if(ev.target.classList.contains('buy')){
+    const id = ev.target.dataset.id;
+    if(!accessToken){
+      if(confirm('You must sign in to buy. Open sign-in?')) { authPanel.style.display='block'; return; }
+      else return;
+    }
+    try {
+      const resp = await fetch(API_BASE + '/purchase', {
+        method:'POST',
+        credentials:'include',
+        headers:{
+          'Authorization': 'Bearer ' + accessToken,
+          'Content-Type':'application/json'
+        },
+        body: JSON.stringify({ productId: id, qty: 1 })
+      });
+      const data = await resp.json();
+      if(resp.ok) alert('Purchase successful: ' + (data.message||'OK'));
+      else {
+        if(data.error && data.error.toLowerCase().includes('token')) {
+          // try refresh if expired
+          await tryRefreshToken();
+          alert('Token expired — attempted refresh. Try again.');
+        } else alert('Purchase failed: ' + (data.error || JSON.stringify(data)));
+      }
+    } catch(err){
+      alert('Network error during purchase.');
+      console.error(err);
+    }
+  }
+});
+
+/* ============ Token refresh helper ============ */
+async function tryRefreshToken(){
+  try {
+    const r = await fetch(API_BASE + '/refresh', { method:'POST', credentials:'include' });
+    const d = await r.json();
+    if(r.ok && d.accessToken){
+      accessToken = d.accessToken;
+      return true;
+    } else {
+      accessToken = null; currentUser = null; updateUserUI();
+      return false;
+    }
+  } catch(e){
+    console.error('refresh failed', e);
+    return false;
+  }
+}
+
+/* ============ Chat widget ============ */
+const chatPanel = $('#chatPanel');
+const chatBody = $('#chatBody');
+const chatInput = $('#chatInput');
+const chatSend = $('#chatSend');
+
+$('#toggleChat').addEventListener('click', ()=>{ chatPanel.style.display = chatPanel.style.display==='none' ? 'flex' : 'none'; });
+$('#closeChat').addEventListener('click', ()=>{ chatPanel.style.display='none'; });
+
+function appendMessage(text, who='bot'){
+  const b = document.createElement('div');
+  b.className = 'bubble' + (who==='me' ? ' me' : '');
+  b.textContent = text;
+  chatBody.appendChild(b);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+/* Basic simulated canned replies if WebSocket not available */
+function simulateReply(userText){
+  // simple rule-based replies for demo
+  const t = userText.toLowerCase();
+  if(t.includes('price')) return 'Prices start at $29 — which item are you asking about?';
+  if(t.includes('refund')) return 'We have a 14-day return policy. Want steps to start a return?';
+  if(t.includes('shipping')) return 'We offer free shipping over $50 and 3-5 day delivery for domestic orders.';
+  if(t.includes('demo')) return 'This is a demo chat — it does not connect to real support unless you run a server.';
+  return 'Thanks for your message — a human would respond soon in a real deployment. For demo, try: "shipping", "price", "refund".';
+}
+
+/* Try open WebSocket, fallback to simulate */
+function connectWebSocket(){
+  try {
+    ws = new WebSocket(WS_BASE);
+    ws.addEventListener('open', ()=>{ wsConnected = true; appendMessage('Connected to chat server.'); });
+    ws.addEventListener('message', (ev)=>{ appendMessage(ev.data, 'bot'); });
+    ws.addEventListener('close', ()=>{ wsConnected = false; appendMessage('Disconnected from chat server.'); });
+    ws.addEventListener('error', (e)=>{ console.warn('WS error', e); wsConnected=false; appendMessage('Chat connection failed — using demo mode.'); });
+  } catch(err){
+    console.warn('WS connect failed', err);
+    wsConnected = false;
+    appendMessage('Chat (demo) ready.');
+  }
+}
+connectWebSocket();
+
+chatSend.addEventListener('click', sendChat);
+chatInput.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter'){ sendChat(); } });
+
+function sendChat(){
+  const text = chatInput.value.trim();
+  if(!text) return;
+  appendMessage(text, 'me');
+  chatInput.value = '';
+  if(wsConnected && ws){ ws.send(text); return; }
+  // fallback simulated reply with slight delay
+  setTimeout(()=>{ appendMessage(simulateReply(text), 'bot'); }, 550 + Math.random()*500);
+}
+
+/* ============ Optional: try silent refresh on load ============ */
+(async function trySilentRefresh(){
+  try {
+    const r = await fetch(API_BASE + '/refresh', { method:'POST', credentials:'include' });
+    if(r.ok){
+      const d = await r.json();
+      if(d.accessToken){ accessToken = d.accessToken; currentUser = { email: 'restored' }; updateUserUI(); }
+    }
+  } catch(e){ /* ignore */ }
+})();
+
+/* Helpful note for developers */
+console.log('E-commerce demo loaded. Edit API_BASE to point at your backend endpoints.');
+</script>
+</body>
+</html>
+
